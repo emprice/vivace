@@ -1,0 +1,7 @@
+#container {
+  display: inline-block;
+  font-family: 'Source Code Pro', monospace;
+  font-size: small;
+  color: var(--highlight-0-color);
+  background-color: var(--highlight-0-background-color);
+}

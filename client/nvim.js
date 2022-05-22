@@ -12,8 +12,12 @@ function makeCss(id, attrs) {
   var fgcolor = defcolors.color;
   var bgcolor = defcolors.backgroundColor;
 
-  if ('background' in attrs) bgcolor = intToHexColor(attrs.background);
-  if ('foreground' in attrs) fgcolor = intToHexColor(attrs.foreground);
+  if ('background' in attrs) {
+    bgcolor = intToHexColor(attrs.background);
+  }
+  if ('foreground' in attrs) {
+    fgcolor = intToHexColor(attrs.foreground);
+  }
 
   if (attrs.reverse) {
     const tmp = fgcolor;
@@ -63,15 +67,17 @@ function makeCss(id, attrs) {
 }
 
 const keymap = new Map();
-keymap.set('<',         '<LT>');
+keymap.set('<', '<LT>');
 keymap.set('Backspace', '<BS>');
-keymap.set('Enter',     '<CR>');
-keymap.set('Escape',    '<Esc>');
+keymap.set('Enter', '<CR>');
+keymap.set('Escape', '<Esc>');
 
 function onKeyDown(e) {
   var key = e.key;
-  if ((key.length === 1) || keymap.has(key)) {
-    if (keymap.has(key)) key = keymap.get(key);
+  if (key.length === 1 || keymap.has(key)) {
+    if (keymap.has(key)) {
+      key = keymap.get(key);
+    }
     sock.emit('key', key);
   }
 }
@@ -114,107 +120,112 @@ for (let y = 0; y < height; y++) {
     const span = document.createElement('span');
     span.innerHTML = '&nbsp;';
     span.className = getHighlightName(0);
-    cells[y*width+x] = span;
+    cells[y * width + x] = span;
     row.appendChild(span);
   }
   terminal.appendChild(row);
 }
 
-sock.on('notify', (msg) => {
+sock.on('notify', msg => {
   const events = msg[2];
   for (const ev of events) {
     switch (ev[0]) {
-      case 'win_viewport': {
-        const params = ev[1];
-        const row = params[4];
-        const col = params[5];
+      case 'win_viewport':
+        {
+          const params = ev[1];
+          const row = params[4];
+          const col = params[5];
 
-        let newsel = cells[row*width+col];
-        newsel.dataset.selected = "1";
+          let newsel = cells[row * width + col];
+          newsel.dataset.selected = '1';
 
-        if ((row != oldcur[0]) || (col != oldcur[1])) {
-          const oldrow = oldcur[0];
-          const oldcol = oldcur[1];
+          if (row !== oldcur[0] || col !== oldcur[1]) {
+            const oldrow = oldcur[0];
+            const oldcol = oldcur[1];
 
-          let oldsel = cells[oldrow*width+oldcol];
-          oldsel.dataset.selected = "0";
-          oldcur = [row, col];
+            let oldsel = cells[oldrow * width + oldcol];
+            oldsel.dataset.selected = '0';
+            oldcur = [row, col];
+          }
         }
-      }
-      break;
+        break;
 
-      case 'grid_cursor_goto': {
-        const params = ev[1];
-        const row = params[1];
-        const col = params[2];
+      case 'grid_cursor_goto':
+        {
+          const params = ev[1];
+          const row = params[1];
+          const col = params[2];
 
-        let newsel = cells[row*width+col];
-        newsel.dataset.selected = "1";
+          let newsel = cells[row * width + col];
+          newsel.dataset.selected = '1';
 
-        if ((row != oldcur[0]) || (col != oldcur[1])) {
-          const oldrow = oldcur[0];
-          const oldcol = oldcur[1];
+          if (row !== oldcur[0] || col !== oldcur[1]) {
+            const oldrow = oldcur[0];
+            const oldcol = oldcur[1];
 
-          let oldsel = cells[oldrow*width+oldcol];
-          oldsel.dataset.selected = "0";
-          oldcur = [row, col];
+            let oldsel = cells[oldrow * width + oldcol];
+            oldsel.dataset.selected = '0';
+            oldcur = [row, col];
+          }
         }
-      }
-      break;
+        break;
 
-      case 'grid_line': {
-        for (const line of ev.slice(1)) {
-          const row = line[1];
-          var col = line[2];
-          var hlid = 0;
-          for (const cell of line[3]) {
-            const text = (cell[0] === ' ') ? '&nbsp;' : cell[0];
-            hlid = (cell.length > 1) ? cell[1] : hlid;
-            const repeat = (cell.length > 2) ? cell[2] : 1;
-            for (let i = 0; i < repeat; i++) {
-              let cur = cells[row*width+col];
-              cur.innerHTML = text;
-              cur.className = getHighlightName(hlid);
-              col += 1;
+      case 'grid_line':
+        {
+          for (const line of ev.slice(1)) {
+            const row = line[1];
+            var col = line[2];
+            var hlid = 0;
+            for (const cell of line[3]) {
+              const text = cell[0] === ' ' ? '&nbsp;' : cell[0];
+              hlid = cell.length > 1 ? cell[1] : hlid;
+              const repeat = cell.length > 2 ? cell[2] : 1;
+              for (let i = 0; i < repeat; i++) {
+                let cur = cells[row * width + col];
+                cur.innerHTML = text;
+                cur.className = getHighlightName(hlid);
+                col += 1;
+              }
             }
           }
         }
-      }
-      break;
+        break;
 
-      case 'default_colors_set': {
-        const colors = ev[1];
-        const css = makeCss(0, {
-          foreground: colors[0],
-          background: colors[1]
-        });
+      case 'default_colors_set':
+        {
+          const colors = ev[1];
+          const css = makeCss(0, {
+            foreground: colors[0],
+            background: colors[1]
+          });
 
-        for (prop of css.props) {
-          root.style.setProperty(prop[0], prop[1]);
-        }
-
-        if (!defaultCssAdded) {
-          style.innerHTML = css.rules.join('\n');
-          defaultCssAdded = true;
-        }
-      }
-      break;
-
-      case 'hl_attr_define': {
-        for (const entry of ev.slice(1)) {
-          const css = makeCss(entry[0], entry[1]);
-
-          for (prop of css.props) {
+          for (let prop of css.props) {
             root.style.setProperty(prop[0], prop[1]);
           }
 
-          if (!hlCssAdded) {
-            style.innerHTML += css.rules.join('\n');
+          if (!defaultCssAdded) {
+            style.innerHTML = css.rules.join('\n');
+            defaultCssAdded = true;
           }
         }
-        hlCssAdded = true;
-      }
-      break;
+        break;
+
+      case 'hl_attr_define':
+        {
+          for (const entry of ev.slice(1)) {
+            const css = makeCss(entry[0], entry[1]);
+
+            for (let prop of css.props) {
+              root.style.setProperty(prop[0], prop[1]);
+            }
+
+            if (!hlCssAdded) {
+              style.innerHTML += css.rules.join('\n');
+            }
+          }
+          hlCssAdded = true;
+        }
+        break;
     }
   }
 });

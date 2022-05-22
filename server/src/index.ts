@@ -30,8 +30,12 @@ app.use(express.static(path.resolve('../client')));
 
 let count = 0;
 
-function doNvimCall(client: net.Socket, fn: string, params: any[],
-    callbackFactory?: (id: number) => ((data: any) => void)): void {
+function doNvimCall(
+  client: net.Socket,
+  fn: string,
+  params: any[],
+  callbackFactory?: (id: number) => (data: any) => void
+): void {
   if (callbackFactory) {
     client.on('msgdata', callbackFactory(count));
   }
@@ -46,9 +50,13 @@ function createBuffer(client: net.Socket): Promise<any> {
     doNvimCall(client, 'nvim_create_buf', [false, true], (id: number) => {
       const callback = function (msg: any[]) {
         const msgtype = msg[0];
-        if (msgtype !== 1) return;
+        if (msgtype !== 1) {
+          return;
+        }
         const msgid = msg[1];
-        if (msgid !== id) return;
+        if (msgid !== id) {
+          return;
+        }
         client.off('msgdata', callback);
 
         if (msg[2] === null) {
@@ -67,9 +75,13 @@ function setCurrentBuffer(client: net.Socket, bufid: number): Promise<void> {
     doNvimCall(client, 'nvim_set_current_buf', [bufid], (id: number) => {
       const callback = function (msg: any[]) {
         const msgtype = msg[0];
-        if (msgtype !== 1) return;
+        if (msgtype !== 1) {
+          return;
+        }
         const msgid = msg[1];
-        if (msgid !== id) return;
+        if (msgid !== id) {
+          return;
+        }
         client.off('msgdata', callback);
 
         if (msg[2] === null) {
@@ -83,25 +95,39 @@ function setCurrentBuffer(client: net.Socket, bufid: number): Promise<void> {
   });
 }
 
-function attachUI(client: net.Socket, socket: Socket, width: number, height: number): Promise<void> {
+function attachUI(
+  client: net.Socket,
+  socket: Socket,
+  width: number,
+  height: number
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const options = { ext_linegrid: true };
-    doNvimCall(client, 'nvim_ui_attach', [width, height, options], (id: number) => {
-      const callback = function (msg: any[]) {
-        const msgtype = msg[0];
-        if (msgtype !== 1) return;
-        const msgid = msg[1];
-        if (msgid !== id) return;
-        client.off('msgdata', callback);
+    doNvimCall(
+      client,
+      'nvim_ui_attach',
+      [width, height, options],
+      (id: number) => {
+        const callback = function (msg: any[]) {
+          const msgtype = msg[0];
+          if (msgtype !== 1) {
+            return;
+          }
+          const msgid = msg[1];
+          if (msgid !== id) {
+            return;
+          }
+          client.off('msgdata', callback);
 
-        if (msg[2] === null) {
-          resolve();
-        } else {
-          reject(msg[2]);
-        }
-      };
-      return callback;
-    });
+          if (msg[2] === null) {
+            resolve();
+          } else {
+            reject(msg[2]);
+          }
+        };
+        return callback;
+      }
+    );
   });
 }
 
@@ -110,9 +136,13 @@ function sendKeys(client: net.Socket, keys: string): Promise<void> {
     doNvimCall(client, 'nvim_input', [keys], (id: number) => {
       const callback = function (msg: any[]) {
         const msgtype = msg[0];
-        if (msgtype !== 1) return;
+        if (msgtype !== 1) {
+          return;
+        }
         const msgid = msg[1];
-        if (msgid !== id) return;
+        if (msgid !== id) {
+          return;
+        }
         client.off('msgdata', callback);
 
         if (msg[2] === null) {
@@ -126,14 +156,22 @@ function sendKeys(client: net.Socket, keys: string): Promise<void> {
   });
 }
 
-function setOption(client: net.Socket, name: string, value: any): Promise<void> {
+function setOption(
+  client: net.Socket,
+  name: string,
+  value: any
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     doNvimCall(client, 'nvim_set_option', [name, value], (id: number) => {
       const callback = function (msg: any[]) {
         const msgtype = msg[0];
-        if (msgtype !== 1) return;
+        if (msgtype !== 1) {
+          return;
+        }
         const msgid = msg[1];
-        if (msgid !== id) return;
+        if (msgid !== id) {
+          return;
+        }
         client.off('msgdata', callback);
 
         if (msg[2] === null) {
@@ -153,12 +191,12 @@ function doNvimLoop(socket: Socket, child: ChildProcess) {
   client.on('connect', async () => {
     console.log('[connected to nvim]');
 
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', reason => {
       doNvimCall(client, 'nvim_ui_detach', []);
       client.end();
     });
 
-    client.on('data', (data) => {
+    client.on('data', data => {
       for (const item of decodeMulti(data)) {
         client.emit('msgdata', item);
       }
@@ -166,14 +204,16 @@ function doNvimLoop(socket: Socket, child: ChildProcess) {
 
     client.on('msgdata', (msg: any[]) => {
       const msgtype: number = msg[0];
-      if (msgtype !== 2) return;
+      if (msgtype !== 2) {
+        return;
+      }
       socket.emit('notify', msg);
     });
 
     client.on('end', () => {
       console.log('[disconnected from nvim]');
       child.kill('SIGTERM');
-      console.log(`[stopped nvim]`);
+      console.log('[stopped nvim]');
     });
 
     const response = await createBuffer(client);
@@ -182,12 +222,12 @@ function doNvimLoop(socket: Socket, child: ChildProcess) {
     await setOption(client, 'laststatus', 0);
     await attachUI(client, socket, 80, 20);
 
-    socket.on('key', async (k) => {
+    socket.on('key', async k => {
       await sendKeys(client, k);
     });
   });
 
-  client.on('error', async (e) => {
+  client.on('error', async e => {
     console.log('[connection error]');
     await new Promise(r => setTimeout(r, 10));
     console.log('[trying again]');
@@ -195,7 +235,7 @@ function doNvimLoop(socket: Socket, child: ChildProcess) {
   });
 }
 
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   console.log('[connection event]');
 
   const args = ['-m', '-n', '--headless', '--listen', 'localhost:9001'];
@@ -208,7 +248,7 @@ io.on('connection', (socket) => {
 });
 
 server.listen(port, () => {
-  console.log(`running on port ${port}`);
+  console.log(`running on port ${port}`); // eslint-disable-line security-node/detect-crlf
 });
 
 // vim: set ft=typescript:
