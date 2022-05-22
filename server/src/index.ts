@@ -7,6 +7,9 @@ import { ChildProcess, spawn } from 'child_process';
 
 import createApplication from 'express';
 import * as express from 'express';
+import helmet from 'helmet';
+import csurf from 'csurf';
+import cookieParser from 'cookie-parser';
 import { Server, Socket } from 'socket.io';
 
 import { encode, decodeMulti } from '@msgpack/msgpack';
@@ -20,6 +23,9 @@ const io = new Server(server, {
 });
 
 app.use(cors());
+app.use(helmet());
+app.use(cookieParser());
+app.use(csurf({ cookie: true }));
 app.use(express.static(path.resolve('../client')));
 
 let count = 0;
@@ -120,6 +126,27 @@ function sendKeys(client: net.Socket, keys: string): Promise<void> {
   });
 }
 
+function setOption(client: net.Socket, name: string, value: any): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    doNvimCall(client, 'nvim_set_option', [name, value], (id: number) => {
+      const callback = function (msg: any[]) {
+        const msgtype = msg[0];
+        if (msgtype !== 1) return;
+        const msgid = msg[1];
+        if (msgid !== id) return;
+        client.off('msgdata', callback);
+
+        if (msg[2] === null) {
+          resolve();
+        } else {
+          reject(msg[2]);
+        }
+      };
+      return callback;
+    });
+  });
+}
+
 function doNvimLoop(socket: Socket, child: ChildProcess) {
   const client = net.createConnection({ host: 'localhost', port: 9001 });
 
@@ -152,6 +179,7 @@ function doNvimLoop(socket: Socket, child: ChildProcess) {
     const response = await createBuffer(client);
     const bufid = response.data[0];
     await setCurrentBuffer(client, bufid);
+    await setOption(client, 'laststatus', 0);
     await attachUI(client, socket, 80, 20);
 
     socket.on('key', async (k) => {
